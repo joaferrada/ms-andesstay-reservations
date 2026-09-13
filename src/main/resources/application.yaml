@@ -1,3 +1,11 @@
+server:
+  port: 8081
+
 spring:
   application:
     name: ms-andesstay-reservations
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://login.microsoftonline.com/524de923-14d5-4e21-bbbf-525ca2e1ced7/v2.0
