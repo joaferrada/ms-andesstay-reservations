@@ -4,16 +4,19 @@ server:
 spring:
   application:
     name: ms-andesstay-reservations
+
   datasource:
     url: jdbc:h2:mem:reservationsdb
     driver-class-name: org.h2.Driver
     username: sa
     password: password
+
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: update
     show-sql: true
+
   h2:
     console:
       enabled: true
@@ -23,4 +26,5 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: https://login.microsoftonline.com/524de923-14d5-4e21-bbbf-525ca2e1ced7/v2.0
+          issuer-uri: https://sts.windows.net/524de923-14d5-4e21-bbbf-525ca2e1ced7/
+          jwk-set-uri: https://login.microsoftonline.com/524de923-14d5-4e21-bbbf-525ca2e1ced7/discovery/keys
