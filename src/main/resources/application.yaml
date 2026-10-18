@@ -28,3 +28,47 @@ spring:
         jwt:
           issuer-uri: https://sts.windows.net/524de923-14d5-4e21-bbbf-525ca2e1ced7/
           jwk-set-uri: https://login.microsoftonline.com/524de923-14d5-4e21-bbbf-525ca2e1ced7/discovery/keys
+
+  # EP3 - RabbitMQ. Con el cluster de infra/mq: RABBITMQ_ADDRESSES=localhost:5672,localhost:5673
+  rabbitmq:
+    addresses: ${RABBITMQ_ADDRESSES:localhost:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    connection-timeout: 3s
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+
+# Nombres de la topologia (unica fuente de verdad; ver RabbitTopologyConfig)
+andesstay:
+  messaging:
+    source: ms-andesstay-reservations
+    dlq-retention: ${ANDESSTAY_DLQ_RETENTION:7d}
+    exchanges:
+      direct: cmd.direct
+      topic: cmd.topic
+      dead-letter: cmd.dead.dlx
+    routes:
+      email:
+        queue: q.cmd.email
+        dlq: q.cmd.email.dlq
+        direct-key: email.send
+        topic-pattern: "email.*"
+        dead-key: email.dead
+      housekeeping:
+        queue: q.cmd.housekeeping
+        dlq: q.cmd.housekeeping.dlq
+        direct-key: housekeeping.ticket
+        topic-pattern: "housekeeping.#"
+        dead-key: housekeeping.dead
+      voucher:
+        queue: q.cmd.voucher
+        dlq: q.cmd.voucher.dlq
+        direct-key: voucher.gen
+        topic-pattern: "voucher.*"
+        dead-key: voucher.dead
+    publishing:
+      housekeeping-preparation-key: housekeeping.ticket.preparacion
+      housekeeping-cleaning-key: housekeeping.ticket.limpieza
