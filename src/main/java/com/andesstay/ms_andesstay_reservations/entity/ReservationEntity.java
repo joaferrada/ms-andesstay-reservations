@@ -2,6 +2,7 @@ package com.andesstay.ms_andesstay_reservations.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "reservations")
@@ -17,8 +18,30 @@ public class ReservationEntity {
     private LocalDate fechaFin;
     private Double precioTotal;
 
+    // EP3: estado del ciclo de vida y auditoria basica
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private ReservationStatus estado;
+
+    private LocalDateTime creadaEn;
+    private LocalDateTime actualizadaEn;
+
     // Constructores, Getters y Setters
     public ReservationEntity() {}
+
+    @PrePersist
+    void alCrear() {
+        if (estado == null) {
+            estado = ReservationStatus.CREADA;
+        }
+        creadaEn = LocalDateTime.now();
+        actualizadaEn = creadaEn;
+    }
+
+    @PreUpdate
+    void alActualizar() {
+        actualizadaEn = LocalDateTime.now();
+    }
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -37,4 +60,13 @@ public class ReservationEntity {
 
     public Double getPrecioTotal() { return precioTotal; }
     public void setPrecioTotal(Double precioTotal) { this.precioTotal = precioTotal; }
+
+    public ReservationStatus getEstado() { return estado; }
+    public void setEstado(ReservationStatus estado) { this.estado = estado; }
+
+    public LocalDateTime getCreadaEn() { return creadaEn; }
+    public void setCreadaEn(LocalDateTime creadaEn) { this.creadaEn = creadaEn; }
+
+    public LocalDateTime getActualizadaEn() { return actualizadaEn; }
+    public void setActualizadaEn(LocalDateTime actualizadaEn) { this.actualizadaEn = actualizadaEn; }
 }
