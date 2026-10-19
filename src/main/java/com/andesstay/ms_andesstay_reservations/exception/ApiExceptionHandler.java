@@ -31,6 +31,16 @@ public class ApiExceptionHandler {
         return error(HttpStatus.CONFLICT, ex.getMessage());
     }
 
+    @ExceptionHandler(CatalogConflictException.class)
+    public ResponseEntity<Map<String, Object>> sinCupos(CatalogConflictException ex) {
+        return error(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(CatalogUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> catalogNoDisponible(CatalogUnavailableException ex) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+    }
+
     @ExceptionHandler(InvalidGuestDataException.class)
     public ResponseEntity<Map<String, Object>> huespedInvalido(InvalidGuestDataException ex) {
         return error(HttpStatus.BAD_REQUEST, ex.getMessage());

@@ -69,3 +69,13 @@ andesstay:
     publishing:
       housekeeping-preparation-key: housekeeping.ticket.preparacion
       housekeeping-cleaning-key: housekeeping.ticket.limpieza
+
+  # Integracion REST sincronica con catalog y audit (JWT del usuario propagado).
+  # En Docker usar los nombres de contenedor, ej. CATALOG_URL=http://ms-andesstay-catalog:8085
+  services:
+    catalog:
+      url: ${CATALOG_URL:http://localhost:8085}
+    audit:
+      url: ${AUDIT_URL:http://localhost:8086}
+    connect-timeout: 2s
+    read-timeout: 5s
