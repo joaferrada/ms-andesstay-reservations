@@ -2,6 +2,7 @@ package com.andesstay.ms_andesstay_reservations.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Positive;
 
 import java.time.LocalDate;
 
@@ -10,8 +11,11 @@ import java.time.LocalDate;
  *
  * huespedNombre/huespedEmail solo se usan (y se validan, grupo {@link DatosHuesped}) cuando crea
  * Admin u Operador; para un Cliente_Dominio salen del token y lo que venga aqui se ignora.
+ *
+ * @param unidadId opcional: id de la unidad en ms-andesstay-catalog
  */
 public record ReservationCreateRequest(
+        @Positive(message = "debe ser mayor que 0") Long unidadId,
         String alojamientoNombre,
         LocalDate fechaInicio,
         LocalDate fechaFin,

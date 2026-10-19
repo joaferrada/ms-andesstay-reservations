@@ -27,6 +27,9 @@ public class ReservationEntity {
     @Column(length = 254)
     private String creadoPor;
 
+    // Id de la unidad en ms-andesstay-catalog (opcional). Si existe, confirmar descuenta un cupo
+    private Long unidadId;
+
     private String alojamientoNombre;
     private LocalDate fechaInicio;
     private LocalDate fechaFin;
@@ -71,6 +74,9 @@ public class ReservationEntity {
 
     public String getCreadoPor() { return creadoPor; }
     public void setCreadoPor(String creadoPor) { this.creadoPor = creadoPor; }
+
+    public Long getUnidadId() { return unidadId; }
+    public void setUnidadId(Long unidadId) { this.unidadId = unidadId; }
 
     public String getAlojamientoNombre() { return alojamientoNombre; }
     public void setAlojamientoNombre(String alojamientoNombre) { this.alojamientoNombre = alojamientoNombre; }

@@ -49,7 +49,7 @@ public class ReservationController {
     @PostMapping
     @PreAuthorize("hasAnyRole('Admin','Operador_Dominio','Cliente_Dominio')")
     // Cliente: huesped = token; Admin/Operador: huesped del body (400 si falta o es invalido)
-    public ReservationEntity crearReserva(@RequestBody ReservationCreateRequest request, Authentication authentication) {
+    public ReservationEntity crearReserva(@Valid @RequestBody ReservationCreateRequest request, Authentication authentication) {
         DatosHuesped huesped = huespedResolver.resolver(request, authentication);
         return reservationService.crear(request, huesped, authentication.getName());
     }
@@ -66,16 +66,18 @@ public class ReservationController {
     // 5. DELETE (Eliminar reserva; solo Admin)
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('Admin')")
-    public ResponseEntity<Void> eliminarReserva(@PathVariable Long id) {
-        return reservationService.eliminar(id)
+    public ResponseEntity<Void> eliminarReserva(@PathVariable Long id, Authentication authentication) {
+        return reservationService.eliminar(id, authentication.getName())
                 ? ResponseEntity.noContent().build()
                 : ResponseEntity.notFound().build();
     }
 
-    // 6. CAMBIO DE ESTADO (EP3). 404 si no existe, 409 si la transicion no esta permitida
+    // 6. CAMBIO DE ESTADO (EP3). 404 si no existe; 409 si la transicion no esta permitida o la
+    //    unidad no tiene cupos; 503 si catalog no responde al confirmar
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('Admin','Operador_Dominio')")
-    public ReservationEntity cambiarEstado(@PathVariable Long id, @Valid @RequestBody StatusUpdateRequest request) {
-        return reservationService.cambiarEstado(id, request.status());
+    public ReservationEntity cambiarEstado(@PathVariable Long id, @Valid @RequestBody StatusUpdateRequest request,
+                                           Authentication authentication) {
+        return reservationService.cambiarEstado(id, request.status(), authentication.getName());
     }
 }

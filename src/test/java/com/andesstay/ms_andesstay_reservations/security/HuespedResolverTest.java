@@ -75,7 +75,7 @@ class HuespedResolverTest {
     }
 
     private static ReservationCreateRequest body(String nombre, String email) {
-        return new ReservationCreateRequest("Cabana Lago", LocalDate.of(2026, 12, 1), LocalDate.of(2026, 12, 5),
+        return new ReservationCreateRequest(null, "Cabana Lago", LocalDate.of(2026, 12, 1), LocalDate.of(2026, 12, 5),
                 250000.0, nombre, email);
     }
 

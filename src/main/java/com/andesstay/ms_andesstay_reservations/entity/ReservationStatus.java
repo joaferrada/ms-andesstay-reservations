@@ -44,4 +44,12 @@ public enum ReservationStatus {
     public boolean puedeTransicionarA(ReservationStatus destino) {
         return destino != null && TRANSICIONES.get(this).contains(destino);
     }
+
+    /**
+     * Estados que ya tienen un cupo descontado en el catalogo (desde CONFIRMADA hasta EN_ESTADIA).
+     * Al pasar de uno de ellos a CANCELADA o CHECKOUT el cupo se devuelve.
+     */
+    public boolean ocupaCupo() {
+        return this == CONFIRMADA || this == CHECKIN_PENDIENTE || this == EN_ESTADIA;
+    }
 }

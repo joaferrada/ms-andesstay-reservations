@@ -46,7 +46,7 @@ public class HuespedResolver {
         String nombre = authentication instanceof JwtAuthenticationToken jwt
                 ? jwt.getToken().getClaimAsString("name")
                 : null;
-        return new ReservationCreateRequest(request.alojamientoNombre(), request.fechaInicio(), request.fechaFin(),
+        return new ReservationCreateRequest(request.unidadId(), request.alojamientoNombre(), request.fechaInicio(), request.fechaFin(),
                 request.precioTotal(), nombre, authentication.getName());
     }
 
