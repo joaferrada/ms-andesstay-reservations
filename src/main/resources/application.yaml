@@ -5,22 +5,19 @@ spring:
   application:
     name: ms-andesstay-reservations
 
+  # Oracle Autonomous Database (OCI) con wallet mTLS. Secretos solo por variables de entorno.
+  # Tests: perfil "test" con H2 (src/test/resources/application-test.yaml)
   datasource:
-    url: jdbc:h2:mem:reservationsdb
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: password
+    url: ${DB_URL:jdbc:oracle:thin:@andesstaydb_tp?TNS_ADMIN=C:/oracle/wallet_andesstay}
+    username: ${DB_USERNAME:ANDESSTAY}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
 
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: update
-    show-sql: true
-
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+    show-sql: false
 
   security:
     oauth2:
