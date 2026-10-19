@@ -74,6 +74,46 @@ class ReservationServiceTest {
                 .isInstanceOf(ReservationNotFoundException.class);
     }
 
+    @Test
+    void listarSinFiltroDevuelveTodas() {
+        service.listar(null, null);
+        service.listar(ReservationStatus.CONFIRMADA, null);
+
+        verify(repository).findAll();
+        verify(repository).findByEstado(ReservationStatus.CONFIRMADA);
+    }
+
+    @Test
+    void listarConClienteSoloDevuelveLasSuyas() {
+        service.listar(null, "ana@andesstay.cl");
+        service.listar(ReservationStatus.CONFIRMADA, "ana@andesstay.cl");
+
+        verify(repository).findByClienteUsername("ana@andesstay.cl");
+        verify(repository).findByClienteUsernameAndEstado("ana@andesstay.cl", ReservationStatus.CONFIRMADA);
+        verify(repository, never()).findAll();
+    }
+
+    @Test
+    void buscarReservaAjenaComoClienteDevuelveVacio() {
+        ReservationEntity r = reserva(1L, ReservationStatus.CREADA);
+        r.setClienteUsername("ana@andesstay.cl");
+        when(repository.findById(1L)).thenReturn(Optional.of(r));
+
+        assertThat(service.buscarPorId(1L, "ana@andesstay.cl")).contains(r);
+        assertThat(service.buscarPorId(1L, "luis@andesstay.cl")).isEmpty();
+        assertThat(service.buscarPorId(1L, null)).contains(r);
+    }
+
+    @Test
+    void actualizarReservaAjenaComoClienteNoGuarda() {
+        ReservationEntity r = reserva(1L, ReservationStatus.CREADA);
+        r.setClienteUsername("ana@andesstay.cl");
+        when(repository.findById(1L)).thenReturn(Optional.of(r));
+
+        assertThat(service.actualizar(1L, new ReservationEntity(), "luis@andesstay.cl")).isEmpty();
+        verify(repository, never()).save(any());
+    }
+
     private static ReservationEntity reserva(Long id, ReservationStatus estado) {
         ReservationEntity r = new ReservationEntity();
         r.setId(id);

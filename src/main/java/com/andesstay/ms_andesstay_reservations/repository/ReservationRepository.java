@@ -11,4 +11,8 @@ import java.util.List;
 public interface ReservationRepository extends JpaRepository<ReservationEntity, Long> {
 
     List<ReservationEntity> findByEstado(ReservationStatus estado);
+
+    List<ReservationEntity> findByClienteUsername(String clienteUsername);
+
+    List<ReservationEntity> findByClienteUsernameAndEstado(String clienteUsername, ReservationStatus estado);
 }

@@ -3,6 +3,7 @@ package com.andesstay.ms_andesstay_reservations.controller;
 import com.andesstay.ms_andesstay_reservations.dto.StatusUpdateRequest;
 import com.andesstay.ms_andesstay_reservations.entity.ReservationEntity;
 import com.andesstay.ms_andesstay_reservations.entity.ReservationStatus;
+import com.andesstay.ms_andesstay_reservations.security.ReservationAccess;
 import com.andesstay.ms_andesstay_reservations.service.ReservationService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -22,17 +23,17 @@ public class ReservationController {
         this.reservationService = reservationService;
     }
 
-    // 1. READ (Listar todas, opcionalmente filtradas por ?status=CONFIRMADA)
+    // 1. READ (Admin/Operador: todas; Cliente: solo las suyas. Opcional ?status=CONFIRMADA)
     @GetMapping
     public List<ReservationEntity> listarReservas(@RequestParam(required = false) ReservationStatus status,
                                                   Authentication authentication) {
-        return reservationService.listar(status);
+        return reservationService.listar(status, ReservationAccess.filtroCliente(authentication));
     }
 
-    // 2. READ (Buscar por ID)
+    // 2. READ (Buscar por ID; 404 si es de otro cliente)
     @GetMapping("/{id}")
-    public ResponseEntity<ReservationEntity> obtenerReservaPorId(@PathVariable Long id) {
-        return reservationService.buscarPorId(id)
+    public ResponseEntity<ReservationEntity> obtenerReservaPorId(@PathVariable Long id, Authentication authentication) {
+        return reservationService.buscarPorId(id, ReservationAccess.filtroCliente(authentication))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -44,11 +45,11 @@ public class ReservationController {
         return reservationService.crear(reserva, authentication.getName());
     }
 
-    // 4. UPDATE (Actualizar reserva existente)
+    // 4. UPDATE (Actualizar reserva existente; el Cliente solo las suyas)
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('Cliente_Dominio') or hasRole('Admin')")
     public ResponseEntity<ReservationEntity> actualizarReserva(@PathVariable Long id, @RequestBody ReservationEntity reservaDetalles, Authentication authentication) {
-        return reservationService.actualizar(id, reservaDetalles)
+        return reservationService.actualizar(id, reservaDetalles, ReservationAccess.filtroCliente(authentication))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

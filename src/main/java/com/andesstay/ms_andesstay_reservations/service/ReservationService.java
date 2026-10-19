@@ -26,14 +26,26 @@ public class ReservationService {
         this.notificationPublisher = notificationPublisher;
     }
 
-    public List<ReservationEntity> listar(ReservationStatus estado) {
+    /**
+     * @param clienteUsername {@code null} = todas (Admin/Operador); si no, solo las de ese cliente
+     */
+    public List<ReservationEntity> listar(ReservationStatus estado, String clienteUsername) {
+        if (clienteUsername == null) {
+            return estado == null
+                    ? reservationRepository.findAll()
+                    : reservationRepository.findByEstado(estado);
+        }
         return estado == null
-                ? reservationRepository.findAll()
-                : reservationRepository.findByEstado(estado);
+                ? reservationRepository.findByClienteUsername(clienteUsername)
+                : reservationRepository.findByClienteUsernameAndEstado(clienteUsername, estado);
     }
 
-    public Optional<ReservationEntity> buscarPorId(Long id) {
-        return reservationRepository.findById(id);
+    /**
+     * Una reserva ajena se trata como inexistente (404) para no revelar que existe.
+     */
+    public Optional<ReservationEntity> buscarPorId(Long id, String clienteUsername) {
+        return reservationRepository.findById(id)
+                .filter(r -> clienteUsername == null || clienteUsername.equals(r.getClienteUsername()));
     }
 
     /**
@@ -51,8 +63,8 @@ public class ReservationService {
     /**
      * Actualiza datos de la reserva (no el estado; para eso existe {@link #cambiarEstado}).
      */
-    public Optional<ReservationEntity> actualizar(Long id, ReservationEntity detalles) {
-        return reservationRepository.findById(id)
+    public Optional<ReservationEntity> actualizar(Long id, ReservationEntity detalles, String clienteUsername) {
+        return buscarPorId(id, clienteUsername)
                 .map(existente -> {
                     existente.setAlojamientoNombre(detalles.getAlojamientoNombre());
                     existente.setFechaInicio(detalles.getFechaInicio());
