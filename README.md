@@ -88,9 +88,16 @@ Crear una reserva por la API y en **Database Actions > SQL** como `ANDESSTAY`: `
 Todos requieren `Authorization: Bearer <JWT de Entra ID>` (normalmente se llaman a traves del BFF en `:8080`).
 
 **Visibilidad por rol** (claim `roles` -> `ROLE_*`, usuario = `preferred_username` o `sub`; ver `security/JwtAuthConverter` y `security/ReservationAccess`):
-- `Admin` y `Operador_Dominio` ven y gestionan todas las reservas.
+- `Admin`, `Operador_Dominio` y `Auditor` ven todas las reservas.
 - `Cliente_Dominio` solo ve y actualiza las suyas (`clienteUsername` = su usuario). Una reserva ajena responde **404**.
-- Los `@PreAuthorize` se aplican (`@EnableMethodSecurity`): crear/actualizar = Cliente o Admin; eliminar y cambiar estado = Admin u Operador (si no, **403**).
+- Los `@PreAuthorize` se aplican (`@EnableMethodSecurity`) con la misma matriz que el BFF (si no, **403**):
+
+| Endpoint | Admin | Operador_Dominio | Cliente_Dominio | Auditor |
+|---|---|---|---|---|
+| GET (listar, `?status=`, `/{id}`) | si | si | si (solo las suyas) | si |
+| POST / PUT `/{id}` | si | si | si (solo las suyas) | no |
+| PUT `/{id}/status` | si | si | no | no |
+| DELETE `/{id}` | si | no | no | no |
 
 | Metodo | Ruta | Descripcion | Codigos |
 |---|---|---|---|

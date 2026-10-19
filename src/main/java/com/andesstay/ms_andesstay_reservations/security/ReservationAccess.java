@@ -6,12 +6,12 @@ import org.springframework.security.core.GrantedAuthority;
 import java.util.Set;
 
 /**
- * Regla de visibilidad: Admin y Operador_Dominio ven todas las reservas;
+ * Regla de visibilidad: Admin, Operador_Dominio y Auditor ven todas las reservas;
  * cualquier otro usuario (Cliente_Dominio) solo las suyas.
  */
 public final class ReservationAccess {
 
-    private static final Set<String> ROLES_VEN_TODO = Set.of("ROLE_Admin", "ROLE_Operador_Dominio");
+    private static final Set<String> ROLES_VEN_TODO = Set.of("ROLE_Admin", "ROLE_Operador_Dominio", "ROLE_Auditor");
 
     private ReservationAccess() {}
 

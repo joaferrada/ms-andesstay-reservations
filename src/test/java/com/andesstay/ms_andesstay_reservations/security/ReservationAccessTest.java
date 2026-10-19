@@ -40,9 +40,10 @@ class ReservationAccessTest {
     }
 
     @Test
-    void adminYOperadorVenTodo() {
+    void adminOperadorYAuditorVenTodo() {
         assertThat(ReservationAccess.filtroCliente(autenticar("admin@andesstay.cl", List.of("Admin")))).isNull();
         assertThat(ReservationAccess.filtroCliente(autenticar("op@andesstay.cl", List.of("Operador_Dominio")))).isNull();
+        assertThat(ReservationAccess.filtroCliente(autenticar("audit@andesstay.cl", List.of("Auditor")))).isNull();
     }
 
     private Authentication autenticar(String username, List<String> roles) {
