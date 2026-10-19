@@ -1,5 +1,6 @@
 package com.andesstay.ms_andesstay_reservations.service;
 
+import com.andesstay.ms_andesstay_reservations.dto.ReservationCreateRequest;
 import com.andesstay.ms_andesstay_reservations.entity.ReservationEntity;
 import com.andesstay.ms_andesstay_reservations.entity.ReservationStatus;
 import com.andesstay.ms_andesstay_reservations.exception.InvalidStatusTransitionException;
@@ -27,33 +28,43 @@ public class ReservationService {
     }
 
     /**
-     * @param clienteUsername {@code null} = todas (Admin/Operador); si no, solo las de ese cliente
+     * @param huespedEmail {@code null} = todas (Admin/Operador/Auditor); si no, solo las de ese huesped
      */
-    public List<ReservationEntity> listar(ReservationStatus estado, String clienteUsername) {
-        if (clienteUsername == null) {
+    public List<ReservationEntity> listar(ReservationStatus estado, String huespedEmail) {
+        if (huespedEmail == null) {
             return estado == null
                     ? reservationRepository.findAll()
                     : reservationRepository.findByEstado(estado);
         }
         return estado == null
-                ? reservationRepository.findByClienteUsername(clienteUsername)
-                : reservationRepository.findByClienteUsernameAndEstado(clienteUsername, estado);
+                ? reservationRepository.findByHuespedEmailIgnoreCase(huespedEmail)
+                : reservationRepository.findByHuespedEmailIgnoreCaseAndEstado(huespedEmail, estado);
     }
 
     /**
      * Una reserva ajena se trata como inexistente (404) para no revelar que existe.
      */
-    public Optional<ReservationEntity> buscarPorId(Long id, String clienteUsername) {
+    public Optional<ReservationEntity> buscarPorId(Long id, String huespedEmail) {
         return reservationRepository.findById(id)
-                .filter(r -> clienteUsername == null || clienteUsername.equals(r.getClienteUsername()));
+                .filter(r -> huespedEmail == null || huespedEmail.equalsIgnoreCase(r.getHuespedEmail()));
     }
 
     /**
      * Una reserva nueva siempre parte en CREADA, sin importar lo que venga en el body.
+     *
+     * @param huesped   datos del huesped ya resueltos y validados (ver HuespedResolver)
+     * @param creadoPor principal del token de quien crea
      */
-    public ReservationEntity crear(ReservationEntity reserva, String clienteUsername) {
-        reserva.setId(null);
-        reserva.setClienteUsername(clienteUsername);
+    public ReservationEntity crear(ReservationCreateRequest request, DatosHuesped huesped, String creadoPor) {
+        ReservationEntity reserva = new ReservationEntity();
+        reserva.setAlojamientoNombre(request.alojamientoNombre());
+        reserva.setFechaInicio(request.fechaInicio());
+        reserva.setFechaFin(request.fechaFin());
+        reserva.setPrecioTotal(request.precioTotal());
+        reserva.setHuespedNombre(huesped.nombre());
+        reserva.setHuespedEmail(huesped.email());
+        reserva.setCreadoPor(creadoPor);
+        reserva.setClienteUsername(creadoPor);
         reserva.setEstado(ReservationStatus.CREADA);
         ReservationEntity guardada = reservationRepository.save(reserva);
         notificationPublisher.publishStatusChanged(guardada, null);
@@ -63,8 +74,8 @@ public class ReservationService {
     /**
      * Actualiza datos de la reserva (no el estado; para eso existe {@link #cambiarEstado}).
      */
-    public Optional<ReservationEntity> actualizar(Long id, ReservationEntity detalles, String clienteUsername) {
-        return buscarPorId(id, clienteUsername)
+    public Optional<ReservationEntity> actualizar(Long id, ReservationEntity detalles, String huespedEmail) {
+        return buscarPorId(id, huespedEmail)
                 .map(existente -> {
                     existente.setAlojamientoNombre(detalles.getAlojamientoNombre());
                     existente.setFechaInicio(detalles.getFechaInicio());

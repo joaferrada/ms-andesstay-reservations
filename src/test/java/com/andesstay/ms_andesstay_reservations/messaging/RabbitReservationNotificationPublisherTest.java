@@ -78,6 +78,8 @@ class RabbitReservationNotificationPublisherTest {
         ReservationEntity r = new ReservationEntity();
         r.setId(1L);
         r.setClienteUsername("ana@andesstay.cl");
+        r.setHuespedNombre("Ana Rojas");
+        r.setHuespedEmail("ana.rojas@correo.cl");
         r.setAlojamientoNombre("Cabana Volcan");
         r.setEstado(estado);
         return r;

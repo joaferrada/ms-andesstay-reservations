@@ -1,9 +1,12 @@
 package com.andesstay.ms_andesstay_reservations.controller;
 
+import com.andesstay.ms_andesstay_reservations.dto.ReservationCreateRequest;
 import com.andesstay.ms_andesstay_reservations.dto.StatusUpdateRequest;
 import com.andesstay.ms_andesstay_reservations.entity.ReservationEntity;
 import com.andesstay.ms_andesstay_reservations.entity.ReservationStatus;
+import com.andesstay.ms_andesstay_reservations.security.HuespedResolver;
 import com.andesstay.ms_andesstay_reservations.security.ReservationAccess;
+import com.andesstay.ms_andesstay_reservations.service.DatosHuesped;
 import com.andesstay.ms_andesstay_reservations.service.ReservationService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -18,9 +21,11 @@ import java.util.List;
 public class ReservationController {
 
     private final ReservationService reservationService;
+    private final HuespedResolver huespedResolver;
 
-    public ReservationController(ReservationService reservationService) {
+    public ReservationController(ReservationService reservationService, HuespedResolver huespedResolver) {
         this.reservationService = reservationService;
+        this.huespedResolver = huespedResolver;
     }
 
     // 1. READ (Admin/Operador/Auditor: todas; Cliente: solo las suyas. Opcional ?status=CONFIRMADA)
@@ -43,8 +48,10 @@ public class ReservationController {
     // 3. CREATE (Crear nueva reserva, siempre parte en CREADA)
     @PostMapping
     @PreAuthorize("hasAnyRole('Admin','Operador_Dominio','Cliente_Dominio')")
-    public ReservationEntity crearReserva(@RequestBody ReservationEntity reserva, Authentication authentication) {
-        return reservationService.crear(reserva, authentication.getName());
+    // Cliente: huesped = token; Admin/Operador: huesped del body (400 si falta o es invalido)
+    public ReservationEntity crearReserva(@RequestBody ReservationCreateRequest request, Authentication authentication) {
+        DatosHuesped huesped = huespedResolver.resolver(request, authentication);
+        return reservationService.crear(request, huesped, authentication.getName());
     }
 
     // 4. UPDATE (Actualizar reserva existente; el Cliente solo las suyas)

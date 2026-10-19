@@ -21,6 +21,28 @@ class ReservationAccessTest {
     }
 
     @Test
+    void tokenV1SinPreferredUsernameUsaUpnYNoSub() {
+        Jwt jwt = Jwt.withTokenValue("t").header("alg", "none")
+                .subject("AAAAAAAAAAAAAAAAAAAAAIkzqFVrSaSaFHy782bbtaQ")
+                .claim("upn", "ana@andesstay.cl")
+                .claim("unique_name", "otro@andesstay.cl")
+                .claim("preferred_username", " ")
+                .build();
+
+        assertThat(converter.convert(jwt).getName()).isEqualTo("ana@andesstay.cl");
+    }
+
+    @Test
+    void sinUpnUsaUniqueNameYLuegoEmail() {
+        Jwt uniqueName = Jwt.withTokenValue("t").header("alg", "none").subject("s")
+                .claim("unique_name", "ana@andesstay.cl").claim("email", "otro@x.cl").build();
+        Jwt email = Jwt.withTokenValue("t").header("alg", "none").subject("s").claim("email", "ana@x.cl").build();
+
+        assertThat(converter.convert(uniqueName).getName()).isEqualTo("ana@andesstay.cl");
+        assertThat(converter.convert(email).getName()).isEqualTo("ana@x.cl");
+    }
+
+    @Test
     void sinPreferredUsernameUsaSub() {
         Jwt jwt = Jwt.withTokenValue("t").header("alg", "none").subject("sub-123").build();
 

@@ -12,7 +12,21 @@ public class ReservationEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Compatibilidad (EP3): principal del token de quien creo la reserva. Ya no se usa para mostrar ni filtrar.
     private String clienteUsername;
+
+    // Huesped de la reserva (obligatorios; se validan al crear en HuespedResolver).
+    // Columnas nullable para que ddl-auto=update pueda agregarlas a una tabla con filas existentes.
+    @Column(length = 150)
+    private String huespedNombre;
+
+    @Column(length = 254)
+    private String huespedEmail;
+
+    // Principal del token de quien creo la reserva (nunca viene del body)
+    @Column(length = 254)
+    private String creadoPor;
+
     private String alojamientoNombre;
     private LocalDate fechaInicio;
     private LocalDate fechaFin;
@@ -48,6 +62,15 @@ public class ReservationEntity {
 
     public String getClienteUsername() { return clienteUsername; }
     public void setClienteUsername(String clienteUsername) { this.clienteUsername = clienteUsername; }
+
+    public String getHuespedNombre() { return huespedNombre; }
+    public void setHuespedNombre(String huespedNombre) { this.huespedNombre = huespedNombre; }
+
+    public String getHuespedEmail() { return huespedEmail; }
+    public void setHuespedEmail(String huespedEmail) { this.huespedEmail = huespedEmail; }
+
+    public String getCreadoPor() { return creadoPor; }
+    public void setCreadoPor(String creadoPor) { this.creadoPor = creadoPor; }
 
     public String getAlojamientoNombre() { return alojamientoNombre; }
     public void setAlojamientoNombre(String alojamientoNombre) { this.alojamientoNombre = alojamientoNombre; }

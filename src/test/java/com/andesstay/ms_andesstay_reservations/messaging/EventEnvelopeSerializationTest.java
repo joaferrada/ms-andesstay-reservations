@@ -27,6 +27,8 @@ class EventEnvelopeSerializationTest {
         ReservationEntity r = new ReservationEntity();
         r.setId(10L);
         r.setClienteUsername("ana@andesstay.cl");
+        r.setHuespedNombre("Ana Rojas");
+        r.setHuespedEmail("ana.rojas@correo.cl");
         r.setAlojamientoNombre("Cabana Volcan");
         r.setFechaInicio(LocalDate.of(2026, 12, 1));
         r.setFechaFin(LocalDate.of(2026, 12, 5));
@@ -47,6 +49,9 @@ class EventEnvelopeSerializationTest {
         assertThat(json.path("correlationId").asString()).isEqualTo("reservation-10");
         assertThat(json.path("source").asString()).isEqualTo("ms-andesstay-reservations");
         assertThat(json.path("payload").path("reservationId").asLong()).isEqualTo(10L);
+        // destinatario del correo y titular del voucher: el huesped, no el usuario que creo la reserva
+        assertThat(json.path("payload").path("huespedEmail").asString()).isEqualTo("ana.rojas@correo.cl");
+        assertThat(json.path("payload").path("huespedNombre").asString()).isEqualTo("Ana Rojas");
         assertThat(json.path("payload").path("fechaInicio").asString()).isEqualTo("2026-12-01");
         assertThat(json.path("payload").path("estado").asString()).isEqualTo("CONFIRMADA");
         assertThat(json.path("payload").path("estadoAnterior").asString()).isEqualTo("CREADA");

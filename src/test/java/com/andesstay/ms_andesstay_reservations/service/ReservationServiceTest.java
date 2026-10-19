@@ -1,5 +1,6 @@
 package com.andesstay.ms_andesstay_reservations.service;
 
+import com.andesstay.ms_andesstay_reservations.dto.ReservationCreateRequest;
 import com.andesstay.ms_andesstay_reservations.entity.ReservationEntity;
 import com.andesstay.ms_andesstay_reservations.entity.ReservationStatus;
 import com.andesstay.ms_andesstay_reservations.exception.InvalidStatusTransitionException;
@@ -8,6 +9,7 @@ import com.andesstay.ms_andesstay_reservations.repository.ReservationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,15 +33,18 @@ class ReservationServiceTest {
 
     @Test
     void crearSiempreParteEnCreadaYPublica() {
-        ReservationEntity body = new ReservationEntity();
-        body.setId(99L);
-        body.setEstado(ReservationStatus.CHECKOUT);
+        ReservationCreateRequest body = new ReservationCreateRequest("Cabana Lago", LocalDate.of(2026, 12, 1),
+                LocalDate.of(2026, 12, 5), 250000.0, "ignorado", "ignorado@x.cl");
 
-        ReservationEntity creada = service.crear(body, "ana@andesstay.cl");
+        ReservationEntity creada = service.crear(body, new DatosHuesped("Ana Rojas", "ana@andesstay.cl"),
+                "operador@andesstay.cl");
 
         assertThat(creada.getEstado()).isEqualTo(ReservationStatus.CREADA);
         assertThat(creada.getId()).isNull();
-        assertThat(creada.getClienteUsername()).isEqualTo("ana@andesstay.cl");
+        assertThat(creada.getAlojamientoNombre()).isEqualTo("Cabana Lago");
+        assertThat(creada.getHuespedNombre()).isEqualTo("Ana Rojas");
+        assertThat(creada.getHuespedEmail()).isEqualTo("ana@andesstay.cl");
+        assertThat(creada.getCreadoPor()).isEqualTo("operador@andesstay.cl");
         verify(publisher).publishStatusChanged(creada, null);
     }
 
@@ -88,18 +93,18 @@ class ReservationServiceTest {
         service.listar(null, "ana@andesstay.cl");
         service.listar(ReservationStatus.CONFIRMADA, "ana@andesstay.cl");
 
-        verify(repository).findByClienteUsername("ana@andesstay.cl");
-        verify(repository).findByClienteUsernameAndEstado("ana@andesstay.cl", ReservationStatus.CONFIRMADA);
+        verify(repository).findByHuespedEmailIgnoreCase("ana@andesstay.cl");
+        verify(repository).findByHuespedEmailIgnoreCaseAndEstado("ana@andesstay.cl", ReservationStatus.CONFIRMADA);
         verify(repository, never()).findAll();
     }
 
     @Test
     void buscarReservaAjenaComoClienteDevuelveVacio() {
         ReservationEntity r = reserva(1L, ReservationStatus.CREADA);
-        r.setClienteUsername("ana@andesstay.cl");
+        r.setHuespedEmail("ana@andesstay.cl");
         when(repository.findById(1L)).thenReturn(Optional.of(r));
 
-        assertThat(service.buscarPorId(1L, "ana@andesstay.cl")).contains(r);
+        assertThat(service.buscarPorId(1L, "ANA@andesstay.cl")).contains(r);
         assertThat(service.buscarPorId(1L, "luis@andesstay.cl")).isEmpty();
         assertThat(service.buscarPorId(1L, null)).contains(r);
     }
@@ -107,7 +112,7 @@ class ReservationServiceTest {
     @Test
     void actualizarReservaAjenaComoClienteNoGuarda() {
         ReservationEntity r = reserva(1L, ReservationStatus.CREADA);
-        r.setClienteUsername("ana@andesstay.cl");
+        r.setHuespedEmail("ana@andesstay.cl");
         when(repository.findById(1L)).thenReturn(Optional.of(r));
 
         assertThat(service.actualizar(1L, new ReservationEntity(), "luis@andesstay.cl")).isEmpty();

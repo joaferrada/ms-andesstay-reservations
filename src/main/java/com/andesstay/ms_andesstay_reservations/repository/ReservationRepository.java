@@ -12,7 +12,7 @@ public interface ReservationRepository extends JpaRepository<ReservationEntity, 
 
     List<ReservationEntity> findByEstado(ReservationStatus estado);
 
-    List<ReservationEntity> findByClienteUsername(String clienteUsername);
+    List<ReservationEntity> findByHuespedEmailIgnoreCase(String huespedEmail);
 
-    List<ReservationEntity> findByClienteUsernameAndEstado(String clienteUsername, ReservationStatus estado);
+    List<ReservationEntity> findByHuespedEmailIgnoreCaseAndEstado(String huespedEmail, ReservationStatus estado);
 }

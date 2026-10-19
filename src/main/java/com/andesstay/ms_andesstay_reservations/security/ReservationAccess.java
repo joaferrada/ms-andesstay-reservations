@@ -7,7 +7,7 @@ import java.util.Set;
 
 /**
  * Regla de visibilidad: Admin, Operador_Dominio y Auditor ven todas las reservas;
- * cualquier otro usuario (Cliente_Dominio) solo las suyas.
+ * cualquier otro usuario (Cliente_Dominio) solo las suyas (huespedEmail = principal del token).
  */
 public final class ReservationAccess {
 
@@ -16,7 +16,7 @@ public final class ReservationAccess {
     private ReservationAccess() {}
 
     /**
-     * @return el username por el que hay que filtrar, o {@code null} si el usuario puede ver todo
+     * @return el email de huesped por el que hay que filtrar (principal), o {@code null} si el usuario puede ver todo
      */
     public static String filtroCliente(Authentication authentication) {
         boolean veTodo = authentication.getAuthorities().stream()
