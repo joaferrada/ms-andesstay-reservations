@@ -87,9 +87,11 @@ Crear una reserva por la API y en **Database Actions > SQL** como `ANDESSTAY`: `
 
 Todos requieren `Authorization: Bearer <JWT de Entra ID>` (normalmente se llaman a traves del BFF en `:8080`).
 
-**Visibilidad por rol** (claim `roles` -> `ROLE_*`, usuario = `preferred_username` o `sub`; ver `security/JwtAuthConverter` y `security/ReservationAccess`):
+**Principal del token** (`security/JwtAuthConverter`): primer claim no vacio entre `preferred_username`, `upn`, `unique_name`, `email` y `sub` (los tokens v1 de Entra traen `upn`/`unique_name`). El claim `roles` se mapea a `ROLE_*`.
+
+**Visibilidad por rol** (`security/ReservationAccess`):
 - `Admin`, `Operador_Dominio` y `Auditor` ven todas las reservas.
-- `Cliente_Dominio` solo ve y actualiza las suyas (`clienteUsername` = su usuario). Una reserva ajena responde **404**.
+- `Cliente_Dominio` solo ve y actualiza las suyas (`huespedEmail` = su principal, sin distinguir mayusculas). Una reserva ajena responde **404**.
 - Los `@PreAuthorize` se aplican (`@EnableMethodSecurity`) con la misma matriz que el BFF (si no, **403**):
 
 | Endpoint | Admin | Operador_Dominio | Cliente_Dominio | Auditor |
@@ -109,7 +111,24 @@ Todos requieren `Authorization: Bearer <JWT de Entra ID>` (normalmente se llaman
 | DELETE | `/api/reservations/{id}` | Elimina | 204, 404 |
 | PUT | `/api/reservations/{id}/status` | Cambia estado (EP3), body `{"status":"CONFIRMADA"}` | 200, 400, 404, 409 |
 
+### Datos del huesped (POST)
+
+Body (`dto/ReservationCreateRequest`): `alojamientoNombre, fechaInicio, fechaFin, precioTotal, huespedNombre, huespedEmail`. `id`, `estado` y `creadoPor` nunca se toman del body.
+
+| Quien crea | `huespedNombre` | `huespedEmail` | `creadoPor` |
+|---|---|---|---|
+| `Cliente_Dominio` | claim `name` del token (el body se ignora) | principal del token | principal del token |
+| `Admin` / `Operador_Dominio` | body, `@NotBlank` | body, `@NotBlank` + `@Email` | principal del token |
+
+Si faltan o son invalidos responde **400**, por ejemplo `{"status":400,"message":"Datos del huesped invalidos: huespedEmail: es obligatorio"}`. Las respuestas incluyen `huespedNombre`, `huespedEmail` y `creadoPor`; `clienteUsername` se mantiene solo por compatibilidad (= `creadoPor`) y no debe usarse para mostrar.
+
+Las columnas `HUESPED_NOMBRE`, `HUESPED_EMAIL` y `CREADO_POR` las agrega `ddl-auto: update` como nullable (Oracle no permite agregar una columna `NOT NULL` a una tabla con filas); la obligatoriedad se valida al crear.
+
 ```bash
+curl -X POST http://localhost:8081/api/reservations \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H "Content-Type: application/json" \
+  -d '{"alojamientoNombre":"Cabana Lago","fechaInicio":"2026-12-01","fechaFin":"2026-12-05","precioTotal":250000,"huespedNombre":"Luis Soto","huespedEmail":"luis@correo.cl"}'
+
 curl -X PUT http://localhost:8081/api/reservations/1/status \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"status":"CONFIRMADA"}'
@@ -139,6 +158,7 @@ Cada cambio de estado publica comandos a RabbitMQ a traves de la interfaz `servi
 | CANCELADA | `EMAIL_RESERVA_CANCELADA` | `cmd.direct` -> `email.send` |
 
 - Envelope comun (`messaging/EventEnvelope`): `type, eventId, timestamp, traceId, correlationId, source, payload`.
+- Payload (`messaging/ReservationPayload`): `reservationId, huespedNombre, huespedEmail, clienteUsername, alojamientoNombre, fechaInicio, fechaFin, precioTotal, estado, estadoAnterior`. El destinatario de los correos es `huespedEmail` y el titular del voucher/boleta es `huespedNombre`; `clienteUsername` sigue viajando solo por compatibilidad con consumidores antiguos.
 - Mensajes persistentes, `content-type: application/json`, `messageId = eventId`, header `x-trace-id`.
 - **Publisher confirms** (`correlated`) y **publisher returns** con `mandatory=true`: los callbacks loguean `[CONFIRM]` y `[RETURN]`.
 - Si el broker esta caido: `[PUBLISH-FAIL]` en log (warn) y la reserva queda guardada igual.
@@ -153,6 +173,8 @@ Cada cambio de estado publica comandos a RabbitMQ a traves de la interfaz `servi
 Los tests no necesitan OCI: `MsAndesstayReservationsApplicationTests` activa el perfil `test` (`src/test/resources/application-test.yaml`, H2 en memoria).
 
 - `ReservationStatusTest`: transiciones validas e invalidas.
-- `ReservationServiceTest`: CREADA forzado, 404, 409 sin publicar, filtro por cliente en listar/buscar/actualizar.
-- `ReservationAccessTest`: mapeo de roles y username del JWT; Admin/Operador ven todo, Cliente solo lo suyo.
+- `ReservationServiceTest`: CREADA forzado con huesped y `creadoPor`, 404, 409 sin publicar, filtro por `huespedEmail` en listar/buscar/actualizar.
+- `ReservationAccessTest`: mapeo de roles; principal = `upn` y no `sub` en tokens v1; Admin/Operador/Auditor ven todo, Cliente solo lo suyo.
+- `HuespedResolverTest`: el Cliente toma nombre/email del token; Admin sin email o con email invalido -> 400.
+- `ReservationControllerSecurityTest`: 200/403 por rol en cada endpoint; POST de Cliente usa los datos del token; Admin sin email -> 400 con mensaje.
 - `RabbitReservationNotificationPublisherTest`: exchanges/keys por estado y tolerancia a broker caido.
