@@ -24,6 +24,8 @@ $env:RABBITMQ_ADDRESSES="localhost:5672,localhost:5673"; .\mvnw.cmd spring-boot:
 | `DB_URL` | `jdbc:oracle:thin:@andesstaydb_tp?TNS_ADMIN=C:/oracle/wallet_andesstay` | alias TNS + carpeta del wallet |
 | `DB_USERNAME` | `ANDESSTAY` | usuario de la BD |
 | `DB_PASSWORD` | (sin default, obligatoria) | password de la BD |
+| `CATALOG_URL` | `http://localhost:8085` | `andesstay.services.catalog.url` (cupos al confirmar/cancelar) |
+| `AUDIT_URL` | `http://localhost:8086` | `andesstay.services.audit.url` (timeline) |
 
 ## Base de datos Oracle en OCI
 
@@ -109,11 +111,11 @@ Todos requieren `Authorization: Bearer <JWT de Entra ID>` (normalmente se llaman
 | POST | `/api/reservations` | Crea (siempre parte en `CREADA`) | 200 |
 | PUT | `/api/reservations/{id}` | Actualiza datos (no el estado) | 200, 404 |
 | DELETE | `/api/reservations/{id}` | Elimina | 204, 404 |
-| PUT | `/api/reservations/{id}/status` | Cambia estado (EP3), body `{"status":"CONFIRMADA"}` | 200, 400, 404, 409 |
+| PUT | `/api/reservations/{id}/status` | Cambia estado (EP3), body `{"status":"CONFIRMADA"}` | 200, 400, 404, 409, 503 |
 
 ### Datos del huesped (POST)
 
-Body (`dto/ReservationCreateRequest`): `alojamientoNombre, fechaInicio, fechaFin, precioTotal, huespedNombre, huespedEmail`. `id`, `estado` y `creadoPor` nunca se toman del body.
+Body (`dto/ReservationCreateRequest`): `unidadId, alojamientoNombre, fechaInicio, fechaFin, precioTotal, huespedNombre, huespedEmail`. `id`, `estado` y `creadoPor` nunca se toman del body. `unidadId` es opcional (id de la unidad en ms-andesstay-catalog, > 0).
 
 | Quien crea | `huespedNombre` | `huespedEmail` | `creadoPor` |
 |---|---|---|---|
@@ -144,6 +146,34 @@ CREADA --> CONFIRMADA --> CHECKIN_PENDIENTE --> EN_ESTADIA --> CHECKOUT
 
 Una transicion que no esta en el diagrama devuelve **409 Conflict** con el detalle de las permitidas. Regla del caso: **no hay check-in sin confirmar** (`CREADA -> CHECKIN_PENDIENTE` = 409).
 
+## Integracion con catalog y audit (REST)
+
+Llamadas **REST sincronicas** con el JWT del usuario propagado (`client/RestClientConfig`, timeouts de 2 s de conexion y 5 s de lectura). `ReservationService` solo conoce las interfaces `service/CatalogClient` y `service/AuditClient`; las implementaciones son `client/RestCatalogClient` y `client/RestAuditClient`. No usan RabbitMQ.
+
+**Cupos en ms-andesstay-catalog** (solo si la reserva tiene `unidadId`):
+
+| Cambio de estado | Llamada | Si falla |
+|---|---|---|
+| a `CONFIRMADA` | `POST /api/catalog/units/{unidadId}/reserve` antes de guardar | 409 de catalog (sin cupos, inactiva) o 404 -> la confirmacion responde **409** con el mensaje, la reserva sigue en `CREADA`. Catalog caido -> **503** |
+| de `CONFIRMADA`, `CHECKIN_PENDIENTE` o `EN_ESTADIA` a `CANCELADA` o `CHECKOUT` | `POST /api/catalog/units/{unidadId}/release` | `log.warn` y la operacion sigue |
+| `DELETE` de una reserva que ocupaba cupo | `POST .../release` | `log.warn` y la operacion sigue |
+
+Si el guardado falla despues de descontar el cupo, se devuelve (compensacion).
+
+```json
+{"status":409,"message":"No se puede confirmar la reserva: La unidad 10 (Cabana Lago) no tiene cupos disponibles (0 de 3)"}
+```
+
+**Timeline en ms-andesstay-audit** (`POST /api/audit/events`, `actor` = principal del token):
+
+| Operacion | Evento |
+|---|---|
+| POST (crear) | `RESERVA_CREADA` |
+| PUT `/{id}/status` | `CAMBIO_ESTADO` con `estadoAnterior` y `estadoNuevo` |
+| DELETE | `RESERVA_ELIMINADA` |
+
+Si audit no responde o rechaza el evento: `log.warn` y la operacion sigue.
+
 ## Mensajeria (EP3)
 
 Cada cambio de estado publica comandos a RabbitMQ a traves de la interfaz `service/ReservationNotificationPublisher` (el dominio no conoce RabbitMQ; la implementacion esta en `messaging/RabbitReservationNotificationPublisher`).
@@ -173,8 +203,9 @@ Cada cambio de estado publica comandos a RabbitMQ a traves de la interfaz `servi
 Los tests no necesitan OCI: `MsAndesstayReservationsApplicationTests` activa el perfil `test` (`src/test/resources/application-test.yaml`, H2 en memoria).
 
 - `ReservationStatusTest`: transiciones validas e invalidas.
-- `ReservationServiceTest`: CREADA forzado con huesped y `creadoPor`, 404, 409 sin publicar, filtro por `huespedEmail` en listar/buscar/actualizar.
+- `ReservationServiceTest`: CREADA forzado con huesped y `creadoPor`, 404, 409 sin publicar, filtro por `huespedEmail` en listar/buscar/actualizar; confirmar descuenta cupo, sin cupos da 409 sin guardar, release solo desde estados que ocupaban cupo, compensacion y auditoria de cada operacion (catalog y audit simulados).
+- `RestClientsTest`: `MockRestServiceServer`; JWT propagado, 409/404 de catalog -> 409, catalog caido -> 503, audit caido o con error no rompe nada.
 - `ReservationAccessTest`: mapeo de roles; principal = `upn` y no `sub` en tokens v1; Admin/Operador/Auditor ven todo, Cliente solo lo suyo.
 - `HuespedResolverTest`: el Cliente toma nombre/email del token; Admin sin email o con email invalido -> 400.
-- `ReservationControllerSecurityTest`: 200/403 por rol en cada endpoint; POST de Cliente usa los datos del token; Admin sin email -> 400 con mensaje.
+- `ReservationControllerSecurityTest`: 200/403 por rol en cada endpoint; POST de Cliente usa los datos del token; Admin sin email -> 400 con mensaje; sin cupos -> 409, catalog caido -> 503, actor del token al cambiar estado.
 - `RabbitReservationNotificationPublisherTest`: exchanges/keys por estado y tolerancia a broker caido.
