@@ -87,6 +87,11 @@ Crear una reserva por la API y en **Database Actions > SQL** como `ANDESSTAY`: `
 
 Todos requieren `Authorization: Bearer <JWT de Entra ID>` (normalmente se llaman a traves del BFF en `:8080`).
 
+**Visibilidad por rol** (claim `roles` -> `ROLE_*`, usuario = `preferred_username` o `sub`; ver `security/JwtAuthConverter` y `security/ReservationAccess`):
+- `Admin` y `Operador_Dominio` ven y gestionan todas las reservas.
+- `Cliente_Dominio` solo ve y actualiza las suyas (`clienteUsername` = su usuario). Una reserva ajena responde **404**.
+- Los `@PreAuthorize` se aplican (`@EnableMethodSecurity`): crear/actualizar = Cliente o Admin; eliminar y cambiar estado = Admin u Operador (si no, **403**).
+
 | Metodo | Ruta | Descripcion | Codigos |
 |---|---|---|---|
 | GET | `/api/reservations` | Lista reservas | 200 |
@@ -141,5 +146,6 @@ Cada cambio de estado publica comandos a RabbitMQ a traves de la interfaz `servi
 Los tests no necesitan OCI: `MsAndesstayReservationsApplicationTests` activa el perfil `test` (`src/test/resources/application-test.yaml`, H2 en memoria).
 
 - `ReservationStatusTest`: transiciones validas e invalidas.
-- `ReservationServiceTest`: CREADA forzado, 404, 409 sin publicar.
+- `ReservationServiceTest`: CREADA forzado, 404, 409 sin publicar, filtro por cliente en listar/buscar/actualizar.
+- `ReservationAccessTest`: mapeo de roles y username del JWT; Admin/Operador ven todo, Cliente solo lo suyo.
 - `RabbitReservationNotificationPublisherTest`: exchanges/keys por estado y tolerancia a broker caido.
