@@ -1,6 +1,9 @@
 package com.andesstay.ms_andesstay_reservations.controller;
 
 import com.andesstay.ms_andesstay_reservations.entity.ReservationEntity;
+import com.andesstay.ms_andesstay_reservations.entity.ReservationStatus;
+import com.andesstay.ms_andesstay_reservations.exception.CatalogConflictException;
+import com.andesstay.ms_andesstay_reservations.exception.CatalogUnavailableException;
 import com.andesstay.ms_andesstay_reservations.security.HuespedResolver;
 import com.andesstay.ms_andesstay_reservations.security.JwtAuthConverter;
 import com.andesstay.ms_andesstay_reservations.security.SecurityConfig;
@@ -62,8 +65,8 @@ class ReservationControllerSecurityTest {
         when(reservationService.buscarPorId(anyLong(), any())).thenReturn(Optional.of(reserva));
         when(reservationService.crear(any(), any(), any())).thenReturn(reserva);
         when(reservationService.actualizar(anyLong(), any(), any())).thenReturn(Optional.of(reserva));
-        when(reservationService.cambiarEstado(anyLong(), any())).thenReturn(reserva);
-        when(reservationService.eliminar(anyLong())).thenReturn(true);
+        when(reservationService.cambiarEstado(anyLong(), any(), any())).thenReturn(reserva);
+        when(reservationService.eliminar(anyLong(), any())).thenReturn(true);
     }
 
     @ParameterizedTest(name = "GET /api/reservations como {0} -> {1}")
@@ -126,6 +129,47 @@ class ReservationControllerSecurityTest {
                         .with(usuario("Admin")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Datos del huesped invalidos: huespedEmail: es obligatorio"));
+        verify(reservationService, never()).crear(any(), any(), any());
+    }
+
+    @Test
+    void confirmarSinCuposResponde409ConMensaje() throws Exception {
+        when(reservationService.cambiarEstado(eq(1L), any(), any())).thenThrow(new CatalogConflictException(
+                "No se puede confirmar la reserva: La unidad 10 (Cabana Lago) no tiene cupos disponibles (0 de 3)"));
+
+        mockMvc.perform(put("/api/reservations/1/status").contentType(MediaType.APPLICATION_JSON).content(STATUS_BODY)
+                        .with(usuario("Operador_Dominio")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(
+                        "No se puede confirmar la reserva: La unidad 10 (Cabana Lago) no tiene cupos disponibles (0 de 3)"));
+    }
+
+    @Test
+    void catalogCaidoAlConfirmarResponde503() throws Exception {
+        when(reservationService.cambiarEstado(eq(1L), any(), any())).thenThrow(new CatalogUnavailableException(
+                "No se puede confirmar la reserva: ms-andesstay-catalog no responde. Intente mas tarde", null));
+
+        mockMvc.perform(put("/api/reservations/1/status").contentType(MediaType.APPLICATION_JSON).content(STATUS_BODY)
+                        .with(usuario("Admin")))
+                .andExpect(status().isServiceUnavailable());
+    }
+
+    @Test
+    void cambioDeEstadoPasaElActorDelToken() throws Exception {
+        mockMvc.perform(put("/api/reservations/1/status").contentType(MediaType.APPLICATION_JSON).content(STATUS_BODY)
+                        .with(usuario("Admin")))
+                .andExpect(status().isOk());
+
+        verify(reservationService).cambiarEstado(1L, ReservationStatus.CONFIRMADA, "ana@andesstay.cl");
+    }
+
+    @Test
+    void unidadIdNoPositivoResponde400() throws Exception {
+        mockMvc.perform(post("/api/reservations").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"unidadId\":0,\"alojamientoNombre\":\"Cabana Lago\"}")
+                        .with(usuario("Cliente_Dominio")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("unidadId: debe ser mayor que 0"));
         verify(reservationService, never()).crear(any(), any(), any());
     }
 
