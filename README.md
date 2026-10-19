@@ -6,7 +6,7 @@ Microservicio de reservas de AndesStay (puerto **8081**). Spring Boot 4.1.1 · J
 
 ```powershell
 # 1. RabbitMQ (opcional: si esta caido, las reservas se guardan igual y solo se loguea un warning)
-docker compose -f ..\infra\mq\compose.yml up -d
+docker compose -f ..\infra\compose.yml up -d rabbit1 rabbit2
 
 # 2. Microservicio (requiere la BD Oracle en OCI, ver seccion siguiente)
 $env:DB_PASSWORD="<password de ANDESSTAY>"
@@ -193,6 +193,18 @@ Cada cambio de estado publica comandos a RabbitMQ a traves de la interfaz `servi
 - **Publisher confirms** (`correlated`) y **publisher returns** con `mandatory=true`: los callbacks loguean `[CONFIRM]` y `[RETURN]`.
 - Si el broker esta caido: `[PUBLISH-FAIL]` en log (warn) y la reserva queda guardada igual.
 - Topologia declarada en `messaging/RabbitTopologyConfig`; todos los nombres vienen de `andesstay.messaging.*` en `application.yaml`.
+
+## Docker
+
+`Dockerfile` multi-stage: build con `maven:3.9-eclipse-temurin-17` y runtime `eclipse-temurin:17-jre` con usuario no root, puerto **8081** y `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75`. Se levanta junto al resto del backend con el compose unico de `infra` (ver su README):
+
+```powershell
+cd ..\infra
+docker compose up -d --build reservations
+docker compose logs -f reservations
+```
+
+En el compose usa RabbitMQ `rabbit1:5672,rabbit2:5672`, `http://catalog:8085` y `http://audit:8086`, y el wallet montado en `/wallet` (solo lectura) con `DB_URL=jdbc:oracle:thin:@andesstaydb_tp?TNS_ADMIN=/wallet`, usuario `ANDESSTAY` y clave `RESERVATIONS_DB_PASSWORD`. Espera a rabbit1, rabbit2, catalog y audit. Healthcheck: `GET http://localhost:8081/actuator/health`.
 
 ## Tests
 
