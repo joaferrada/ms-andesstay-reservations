@@ -1,6 +1,6 @@
 # ms-andesstay-reservations
 
-Microservicio de reservas de AndesStay (puerto **8081**). Spring Boot 4.1.1 · Java 17 · JPA + H2 · Resource Server JWT (Microsoft Entra ID) · **productor RabbitMQ** (EP3).
+Microservicio de reservas de AndesStay (puerto **8081**). Spring Boot 4.1.1 · Java 17 · JPA + Oracle Autonomous Database (H2 solo en tests) · Resource Server JWT (Microsoft Entra ID) · **productor RabbitMQ** (EP3).
 
 ## Ejecutar
 
@@ -8,7 +8,8 @@ Microservicio de reservas de AndesStay (puerto **8081**). Spring Boot 4.1.1 · J
 # 1. RabbitMQ (opcional: si esta caido, las reservas se guardan igual y solo se loguea un warning)
 docker compose -f ..\infra\mq\compose.yml up -d
 
-# 2. Microservicio
+# 2. Microservicio (requiere la BD Oracle en OCI, ver seccion siguiente)
+$env:DB_PASSWORD="<password de ANDESSTAY>"
 .\mvnw.cmd spring-boot:run
 # Con el cluster de 2 nodos:
 $env:RABBITMQ_ADDRESSES="localhost:5672,localhost:5673"; .\mvnw.cmd spring-boot:run
@@ -20,6 +21,67 @@ $env:RABBITMQ_ADDRESSES="localhost:5672,localhost:5673"; .\mvnw.cmd spring-boot:
 | `RABBITMQ_USERNAME` / `RABBITMQ_PASSWORD` | `guest` / `guest` | credenciales |
 | `RABBITMQ_VHOST` | `/` | virtual host |
 | `ANDESSTAY_DLQ_RETENTION` | `7d` | `x-message-ttl` de las DLQ |
+| `DB_URL` | `jdbc:oracle:thin:@andesstaydb_tp?TNS_ADMIN=C:/oracle/wallet_andesstay` | alias TNS + carpeta del wallet |
+| `DB_USERNAME` | `ANDESSTAY` | usuario de la BD |
+| `DB_PASSWORD` | (sin default, obligatoria) | password de la BD |
+
+## Base de datos Oracle en OCI
+
+La persistencia usa **Oracle Autonomous Database (Always Free)** con conexion mTLS por wallet. El driver es `ojdbc11-production` (incluye `oraclepki` para leer el wallet). Hibernate detecta el dialecto y crea/actualiza la tabla `RESERVATIONS` (`ddl-auto: update`). Pool Hikari de 5 conexiones (el tier Always Free limita las sesiones).
+
+### 1. Crear la BD
+
+1. Consola OCI > **Oracle Database > Autonomous Database > Create Autonomous Database**.
+2. Nombre de BD: `andesstaydb`, tipo de carga **Transaction Processing**, marcar **Always Free**.
+3. Definir la password de `ADMIN` y en *Network access* dejar **Secure access from everywhere** con **mTLS requerido**.
+4. Cuando quede *Available*, entrar a **Database Actions > SQL** como `ADMIN` y crear el usuario de la app:
+
+```sql
+CREATE USER ANDESSTAY IDENTIFIED BY "<password segura>";
+GRANT CREATE SESSION, CREATE TABLE, CREATE SEQUENCE TO ANDESSTAY;
+ALTER USER ANDESSTAY QUOTA UNLIMITED ON DATA;
+```
+
+### 2. Descargar el wallet
+
+1. En la BD: **Database connection > Download wallet** (tipo *Instance wallet*), definir una password para el wallet y descargar `Wallet_andesstaydb.zip`.
+2. Descomprimir **fuera del repo**, por ejemplo en `C:\oracle\wallet_andesstay` (debe contener `tnsnames.ora`, `sqlnet.ora`, `cwallet.sso`, `ewallet.p12`...).
+3. El alias `andesstaydb_tp` sale de `tnsnames.ora` (tambien existen `_high`, `_medium`, `_low`, `_tpurgent`).
+
+El wallet, los `.zip` y el `.env` estan en `.gitignore`: **nunca se versionan**.
+
+### 3. Variables de entorno
+
+Ver `.env.example`. `DB_URL` combina el alias TNS con la carpeta del wallet (`TNS_ADMIN`); usar `/` en la ruta, tambien en Windows.
+
+```powershell
+$env:DB_URL="jdbc:oracle:thin:@andesstaydb_tp?TNS_ADMIN=C:/oracle/wallet_andesstay"
+$env:DB_USERNAME="ANDESSTAY"
+$env:DB_PASSWORD="<password de ANDESSTAY>"
+.\mvnw.cmd spring-boot:run
+```
+
+### 4. Copiar el wallet a la EC2
+
+```powershell
+# Desde Windows (el destino debe existir: ssh ... "mkdir -p ~/wallet_andesstay")
+scp -i .\andesstay.pem C:\oracle\wallet_andesstay\* ec2-user@<IP_EC2>:~/wallet_andesstay/
+```
+
+```bash
+# En la EC2
+chmod 700 ~/wallet_andesstay && chmod 600 ~/wallet_andesstay/*
+export DB_URL="jdbc:oracle:thin:@andesstaydb_tp?TNS_ADMIN=/home/ec2-user/wallet_andesstay"
+export DB_USERNAME=ANDESSTAY
+export DB_PASSWORD='<password de ANDESSTAY>'
+java -jar ms-andesstay-reservations-0.0.1-SNAPSHOT.jar
+```
+
+Si la app corre en Docker, montar el wallet como volumen de solo lectura (`-v /home/ec2-user/wallet_andesstay:/wallet:ro`) y usar `TNS_ADMIN=/wallet` en `DB_URL`.
+
+### 5. Verificar
+
+Crear una reserva por la API y en **Database Actions > SQL** como `ANDESSTAY`: `SELECT * FROM RESERVATIONS;`
 
 ## Endpoints
 
@@ -75,6 +137,8 @@ Cada cambio de estado publica comandos a RabbitMQ a traves de la interfaz `servi
 ```powershell
 .\mvnw.cmd clean package
 ```
+
+Los tests no necesitan OCI: `MsAndesstayReservationsApplicationTests` activa el perfil `test` (`src/test/resources/application-test.yaml`, H2 en memoria).
 
 - `ReservationStatusTest`: transiciones validas e invalidas.
 - `ReservationServiceTest`: CREADA forzado, 404, 409 sin publicar.

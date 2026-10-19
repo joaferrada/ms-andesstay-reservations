@@ -31,3 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Oracle ADB wallet y secretos ###
+wallet/
+*.zip
+Wallet_*
+.env
