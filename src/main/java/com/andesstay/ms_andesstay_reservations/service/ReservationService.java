@@ -14,24 +14,27 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Logica de negocio de reservas. No conoce RabbitMQ ni RestClient: publica comandos a traves de
- * {@link ReservationNotificationPublisher} y llama a catalog/audit a traves de {@link CatalogClient}
- * y {@link AuditClient}.
+ * Logica de negocio de reservas. No conoce RabbitMQ, Kafka ni RestClient: publica comandos a traves de
+ * {@link ReservationNotificationPublisher} (RabbitMQ), eventos a traves de {@link ReservationEventPublisher}
+ * (Kafka) y llama a catalog/audit a traves de {@link CatalogClient} y {@link AuditClient}.
  */
 @Service
 public class ReservationService {
 
     private final ReservationRepository reservationRepository;
     private final ReservationNotificationPublisher notificationPublisher;
+    private final ReservationEventPublisher eventPublisher;
     private final CatalogClient catalogClient;
     private final AuditClient auditClient;
 
     public ReservationService(ReservationRepository reservationRepository,
                               ReservationNotificationPublisher notificationPublisher,
+                              ReservationEventPublisher eventPublisher,
                               CatalogClient catalogClient,
                               AuditClient auditClient) {
         this.reservationRepository = reservationRepository;
         this.notificationPublisher = notificationPublisher;
+        this.eventPublisher = eventPublisher;
         this.catalogClient = catalogClient;
         this.auditClient = auditClient;
     }
@@ -79,21 +82,26 @@ public class ReservationService {
         reserva.setEstado(ReservationStatus.CREADA);
         ReservationEntity guardada = reservationRepository.save(reserva);
         notificationPublisher.publishStatusChanged(guardada, null);
+        eventPublisher.reservationCreated(guardada, creadoPor);
         auditClient.registrarCreacion(guardada, creadoPor);
         return guardada;
     }
 
     /**
      * Actualiza datos de la reserva (no el estado; para eso existe {@link #cambiarEstado}).
+     *
+     * @param actor principal del token de quien actualiza
      */
-    public Optional<ReservationEntity> actualizar(Long id, ReservationEntity detalles, String huespedEmail) {
+    public Optional<ReservationEntity> actualizar(Long id, ReservationEntity detalles, String huespedEmail, String actor) {
         return buscarPorId(id, huespedEmail)
                 .map(existente -> {
                     existente.setAlojamientoNombre(detalles.getAlojamientoNombre());
                     existente.setFechaInicio(detalles.getFechaInicio());
                     existente.setFechaFin(detalles.getFechaFin());
                     existente.setPrecioTotal(detalles.getPrecioTotal());
-                    return reservationRepository.save(existente);
+                    ReservationEntity guardada = reservationRepository.save(existente);
+                    eventPublisher.reservationUpdated(guardada, actor);
+                    return guardada;
                 });
     }
 
@@ -111,6 +119,7 @@ public class ReservationService {
         if (reserva.getUnidadId() != null && reserva.getEstado() != null && reserva.getEstado().ocupaCupo()) {
             catalogClient.liberarCupo(reserva.getUnidadId());
         }
+        eventPublisher.reservationDeleted(reserva, actor);
         auditClient.registrarEliminacion(reserva, actor);
         return true;
     }
@@ -162,6 +171,7 @@ public class ReservationService {
             catalogClient.liberarCupo(unidadId);
         }
         notificationPublisher.publishStatusChanged(guardada, anterior);
+        eventPublisher.statusChanged(guardada, anterior, actor);
         auditClient.registrarCambioEstado(guardada, anterior, actor);
         return guardada;
     }

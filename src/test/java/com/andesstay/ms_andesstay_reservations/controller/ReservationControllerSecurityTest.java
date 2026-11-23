@@ -64,7 +64,7 @@ class ReservationControllerSecurityTest {
         ReservationEntity reserva = new ReservationEntity();
         when(reservationService.buscarPorId(anyLong(), any())).thenReturn(Optional.of(reserva));
         when(reservationService.crear(any(), any(), any())).thenReturn(reserva);
-        when(reservationService.actualizar(anyLong(), any(), any())).thenReturn(Optional.of(reserva));
+        when(reservationService.actualizar(anyLong(), any(), any(), any())).thenReturn(Optional.of(reserva));
         when(reservationService.cambiarEstado(anyLong(), any(), any())).thenReturn(reserva);
         when(reservationService.eliminar(anyLong(), any())).thenReturn(true);
     }

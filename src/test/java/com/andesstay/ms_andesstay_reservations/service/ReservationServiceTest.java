@@ -27,6 +27,7 @@ class ReservationServiceTest {
 
     private ReservationRepository repository;
     private ReservationNotificationPublisher publisher;
+    private ReservationEventPublisher eventPublisher;
     private CatalogClient catalog;
     private AuditClient audit;
     private ReservationService service;
@@ -35,9 +36,10 @@ class ReservationServiceTest {
     void setUp() {
         repository = mock(ReservationRepository.class);
         publisher = mock(ReservationNotificationPublisher.class);
+        eventPublisher = mock(ReservationEventPublisher.class);
         catalog = mock(CatalogClient.class);
         audit = mock(AuditClient.class);
-        service = new ReservationService(repository, publisher, catalog, audit);
+        service = new ReservationService(repository, publisher, eventPublisher, catalog, audit);
         when(repository.save(any(ReservationEntity.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
@@ -207,7 +209,7 @@ class ReservationServiceTest {
         r.setHuespedEmail("ana@andesstay.cl");
         when(repository.findById(1L)).thenReturn(Optional.of(r));
 
-        assertThat(service.actualizar(1L, new ReservationEntity(), "luis@andesstay.cl")).isEmpty();
+        assertThat(service.actualizar(1L, new ReservationEntity(), "luis@andesstay.cl", "luis@andesstay.cl")).isEmpty();
         verify(repository, never()).save(any());
     }
 

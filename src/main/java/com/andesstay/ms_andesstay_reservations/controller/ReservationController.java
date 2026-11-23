@@ -58,7 +58,8 @@ public class ReservationController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('Admin','Operador_Dominio','Cliente_Dominio')")
     public ResponseEntity<ReservationEntity> actualizarReserva(@PathVariable Long id, @RequestBody ReservationEntity reservaDetalles, Authentication authentication) {
-        return reservationService.actualizar(id, reservaDetalles, ReservationAccess.filtroCliente(authentication))
+        return reservationService.actualizar(id, reservaDetalles, ReservationAccess.filtroCliente(authentication),
+                authentication.getName())
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

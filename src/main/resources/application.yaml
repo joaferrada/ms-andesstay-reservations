@@ -38,6 +38,23 @@ spring:
     template:
       mandatory: true
 
+  # EP5 - Kafka. Local: los 3 brokers de infra/kafka. Docker: KAFKA_BOOTSTRAP_SERVERS=kafka1:29092,kafka2:29092,kafka3:29092
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
+    client-id: ms-andesstay-reservations
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      acks: all
+      compression-type: lz4
+      properties:
+        enable.idempotence: true
+        linger.ms: 10
+        delivery.timeout.ms: 30000
+        request.timeout.ms: 10000
+        max.block.ms: 5000
+        spring.json.add.type.headers: false
+
 # Nombres de la topologia (unica fuente de verdad; ver RabbitTopologyConfig)
 andesstay:
   messaging:
@@ -79,6 +96,17 @@ andesstay:
       url: ${AUDIT_URL:http://localhost:8086}
     connect-timeout: 2s
     read-timeout: 5s
+
+  # EP5 - Topicos Kafka que este microservicio declara (KafkaTopicConfig los crea al arrancar).
+  # Valores del caso (seccion 9): 3 particiones, 3 replicas, cleanup delete, retencion 3-7 dias.
+  kafka:
+    topics:
+      reservation-events:
+        name: reservations.events
+        partitions: 3
+        replicas: 3
+        retention: ${KAFKA_RESERVATIONS_RETENTION:7d}
+        min-insync-replicas: 2
 
 # Solo /actuator/health (healthcheck de Docker)
 management:
