@@ -29,7 +29,6 @@ class ReservationServiceTest {
     private ReservationNotificationPublisher publisher;
     private ReservationEventPublisher eventPublisher;
     private CatalogClient catalog;
-    private AuditClient audit;
     private ReservationService service;
 
     @BeforeEach
@@ -38,8 +37,7 @@ class ReservationServiceTest {
         publisher = mock(ReservationNotificationPublisher.class);
         eventPublisher = mock(ReservationEventPublisher.class);
         catalog = mock(CatalogClient.class);
-        audit = mock(AuditClient.class);
-        service = new ReservationService(repository, publisher, eventPublisher, catalog, audit);
+        service = new ReservationService(repository, publisher, eventPublisher, catalog);
         when(repository.save(any(ReservationEntity.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
@@ -59,7 +57,7 @@ class ReservationServiceTest {
         assertThat(creada.getHuespedEmail()).isEqualTo("ana@andesstay.cl");
         assertThat(creada.getCreadoPor()).isEqualTo("operador@andesstay.cl");
         verify(publisher).publishStatusChanged(creada, null);
-        verify(audit).registrarCreacion(creada, "operador@andesstay.cl");
+        verify(eventPublisher).reservationCreated(creada, "operador@andesstay.cl");
         verifyNoInteractions(catalog); // crear no descuenta cupo: eso ocurre al confirmar
     }
 
@@ -73,7 +71,7 @@ class ReservationServiceTest {
         assertThat(resultado.getEstado()).isEqualTo(ReservationStatus.CONFIRMADA);
         verify(repository).save(r);
         verify(publisher).publishStatusChanged(r, ReservationStatus.CREADA);
-        verify(audit).registrarCambioEstado(r, ReservationStatus.CREADA, OPERADOR);
+        verify(eventPublisher).statusChanged(r, ReservationStatus.CREADA, OPERADOR);
         verifyNoInteractions(catalog); // sin unidadId no se toca el catalogo
     }
 
@@ -102,7 +100,7 @@ class ReservationServiceTest {
                 .hasMessageContaining("no tiene cupos disponibles");
         assertThat(r.getEstado()).isEqualTo(ReservationStatus.CREADA);
         verify(repository, never()).save(any());
-        verifyNoInteractions(publisher, audit);
+        verifyNoInteractions(publisher, eventPublisher);
     }
 
     @Test
@@ -142,7 +140,7 @@ class ReservationServiceTest {
                 .isInstanceOf(InvalidStatusTransitionException.class)
                 .hasMessageContaining("CREADA -> CHECKIN_PENDIENTE");
         verify(repository, never()).save(any());
-        verifyNoInteractions(publisher, catalog, audit);
+        verifyNoInteractions(publisher, catalog, eventPublisher);
     }
 
     @Test
@@ -162,7 +160,7 @@ class ReservationServiceTest {
 
         verify(repository).deleteById(1L);
         verify(catalog).liberarCupo(10L);
-        verify(audit).registrarEliminacion(r, "admin@andesstay.cl");
+        verify(eventPublisher).reservationDeleted(r, "admin@andesstay.cl");
     }
 
     @Test
@@ -170,7 +168,7 @@ class ReservationServiceTest {
         when(repository.findById(9L)).thenReturn(Optional.empty());
 
         assertThat(service.eliminar(9L, "admin@andesstay.cl")).isFalse();
-        verifyNoInteractions(audit, catalog);
+        verifyNoInteractions(eventPublisher, catalog);
     }
 
     @Test

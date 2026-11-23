@@ -16,7 +16,10 @@ import java.util.Optional;
 /**
  * Logica de negocio de reservas. No conoce RabbitMQ, Kafka ni RestClient: publica comandos a traves de
  * {@link ReservationNotificationPublisher} (RabbitMQ), eventos a traves de {@link ReservationEventPublisher}
- * (Kafka) y llama a catalog/audit a traves de {@link CatalogClient} y {@link AuditClient}.
+ * (Kafka) y llama a catalog a traves de {@link CatalogClient}.
+ *
+ * EP5: la auditoria ya no se registra por REST. ms-andesstay-audit consume los eventos de
+ * reservations.events (Kafka) y arma el timeline a partir de ellos.
  */
 @Service
 public class ReservationService {
@@ -25,18 +28,15 @@ public class ReservationService {
     private final ReservationNotificationPublisher notificationPublisher;
     private final ReservationEventPublisher eventPublisher;
     private final CatalogClient catalogClient;
-    private final AuditClient auditClient;
 
     public ReservationService(ReservationRepository reservationRepository,
                               ReservationNotificationPublisher notificationPublisher,
                               ReservationEventPublisher eventPublisher,
-                              CatalogClient catalogClient,
-                              AuditClient auditClient) {
+                              CatalogClient catalogClient) {
         this.reservationRepository = reservationRepository;
         this.notificationPublisher = notificationPublisher;
         this.eventPublisher = eventPublisher;
         this.catalogClient = catalogClient;
-        this.auditClient = auditClient;
     }
 
     /**
@@ -63,7 +63,7 @@ public class ReservationService {
 
     /**
      * Una reserva nueva siempre parte en CREADA, sin importar lo que venga en el body.
-     * Registra RESERVA_CREADA en audit (si audit no responde, la reserva se crea igual).
+     * Publica RESERVATION_CREATED en Kafka (si Kafka no responde, la reserva se crea igual).
      *
      * @param huesped   datos del huesped ya resueltos y validados (ver HuespedResolver)
      * @param creadoPor principal del token de quien crea
@@ -83,7 +83,6 @@ public class ReservationService {
         ReservationEntity guardada = reservationRepository.save(reserva);
         notificationPublisher.publishStatusChanged(guardada, null);
         eventPublisher.reservationCreated(guardada, creadoPor);
-        auditClient.registrarCreacion(guardada, creadoPor);
         return guardada;
     }
 
@@ -107,7 +106,7 @@ public class ReservationService {
 
     /**
      * Si la reserva ocupaba un cupo (CONFIRMADA..EN_ESTADIA) lo devuelve al catalogo.
-     * Registra RESERVA_ELIMINADA en audit.
+     * Publica RESERVATION_DELETED en Kafka.
      */
     public boolean eliminar(Long id, String actor) {
         Optional<ReservationEntity> encontrada = reservationRepository.findById(id);
@@ -120,7 +119,6 @@ public class ReservationService {
             catalogClient.liberarCupo(reserva.getUnidadId());
         }
         eventPublisher.reservationDeleted(reserva, actor);
-        auditClient.registrarEliminacion(reserva, actor);
         return true;
     }
 
@@ -130,7 +128,7 @@ public class ReservationService {
      *   <li>a CONFIRMADA con unidadId: descuenta un cupo antes de guardar (si catalog lo rechaza, no se confirma)</li>
      *   <li>a CANCELADA o CHECKOUT desde un estado que ocupaba cupo: lo devuelve</li>
      * </ul>
-     * Registra CAMBIO_ESTADO en audit.
+     * Publica RESERVATION_STATUS_CHANGED en Kafka.
      *
      * @param actor principal del token de quien cambia el estado
      * @throws ReservationNotFoundException      si la reserva no existe (404)
@@ -172,7 +170,6 @@ public class ReservationService {
         }
         notificationPublisher.publishStatusChanged(guardada, anterior);
         eventPublisher.statusChanged(guardada, anterior, actor);
-        auditClient.registrarCambioEstado(guardada, anterior, actor);
         return guardada;
     }
 }
